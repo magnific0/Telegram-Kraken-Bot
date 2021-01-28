@@ -1818,6 +1818,7 @@ def is_conf_sane(trade_pairs):
     for setting, value in config.items():
         # Check if user ID is a digit
         if "USER_ID" == setting.upper():
+            # Allow negative user IDs (group chats)
             if not value.replace('-','').isdigit():
                 return False, setting.upper()
         # Check if trade pairs are correctly configured,
