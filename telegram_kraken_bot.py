@@ -1077,6 +1077,32 @@ def value_currency(bot, update):
     return ConversationHandler.END
 
 
+# Value of the wallet
+def wallet_value(bot, update):
+
+    req_asset = dict()
+    req_asset["asset"] = config["base_currency"]
+
+    # Send request to Kraken tp obtain the combined balance of all currencies
+    res_trade_balance = kraken_api("TradeBalance", data=req_asset, private=True)
+
+    # If Kraken replied with an error, show it
+    if handle_api_error(res_trade_balance, update):
+        return
+
+    for asset, data in assets.items():
+        if data["altname"] == config["base_currency"]:
+            if asset.startswith("Z"):
+                # It's a fiat currency, show only 2 digits after decimal place
+                total_fiat_value = trim_zeros(float(res_trade_balance["result"]["eb"]), 2)
+            else:
+                # It's not a fiat currency, show 8 digits after decimal place
+                total_fiat_value = trim_zeros(float(res_trade_balance["result"]["eb"]))
+
+    # Generate message to user
+    msg = e_fns + bold("Wallet value: " + total_fiat_value + " " + config["base_currency"])
+    bot.send_message(chat_id=config["user_id"], text=msg, parse_mode=ParseMode.MARKDOWN)
+
 # Reloads keyboard with available commands
 @restrict_access
 def reload_cmd(bot, update):
@@ -1777,13 +1803,22 @@ def monitor_updates():
         job_queue.run_repeating(version_check, config["update_check"], first=0)
 
 
+# Start periodical job to check if new bot version is available
+def monitor_wallet_value():
+    if len(config["wallet_value_check"]) > 0:
+        # Add Job to JobQueue to run periodically
+        # job_queue.run_repeating(wallet_value, config["wallet_value_check"], first=0)
+        for hm in config["wallet_value_check"]:
+            job_queue.run_daily(wallet_value, datetime.time(hour=hm[0], minute=hm[1]))
+
+
 # TODO: Complete sanity check
 # Check sanity of settings in config file
 def is_conf_sane(trade_pairs):
     for setting, value in config.items():
         # Check if user ID is a digit
         if "USER_ID" == setting.upper():
-            if not value.isdigit():
+            if not value.replace('-','').isdigit():
                 return False, setting.upper()
         # Check if trade pairs are correctly configured,
         # and save pairs in global variable
@@ -2285,6 +2320,7 @@ else:
 
 # Check for new bot version periodically
 monitor_updates()
+monitor_wallet_value()
 
 # Periodically monitor status changes of open orders
 if config["check_trade"] > 0:

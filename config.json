@@ -7,6 +7,7 @@
     "update_url": "https://raw.githubusercontent.com/endogen/Telegram-Kraken-Bot/master/telegram_kraken_bot.py",
     "update_hash": "some_hash",
     "update_check": 86400,
+    "wallet_value_check": [[8,0],[12,0],[16,0],[20,0]],
     "send_error": false,
     "show_access_denied": true,
     "used_pairs": {
