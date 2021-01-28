@@ -18,7 +18,6 @@ from telegram import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove, P
 from telegram.ext import Updater, CommandHandler, ConversationHandler, RegexHandler, MessageHandler
 from telegram.ext.filters import Filters
 
-
 # Emojis for messages
 e_err = "‼ "  # Error
 e_wit = "⏳ "  # Wait
@@ -55,6 +54,9 @@ logger = logging.getLogger()
 
 # Current date for logging
 date = datetime.datetime.now().strftime(date_format)
+
+# Turn on/off chatty mode
+chatty_mode = config["chatty_mode"]
 
 # Add a file handler to the logger if enabled
 if config["log_to_file"]:
@@ -155,7 +157,7 @@ class KeyboardEnum(Enum):
 # Log an event and save it in a file with current date as name if enabled
 def log(severity, msg):
     # Check if logging is enabled
-    if config["log_level"] is 0:
+    if config["log_level"] == 0:
         return
 
     # Add file handler to logger if enabled
@@ -256,7 +258,8 @@ def restrict_access(func):
 # Get balance of all currencies
 @restrict_access
 def balance_cmd(bot, update):
-    update.message.reply_text(e_wit + "Retrieving balance...")
+    if chatty_mode:
+        update.message.reply_text(e_wit + "Retrieving balance...")
 
     # Send request to Kraken to get current balance of all currencies
     res_balance = kraken_api("Balance", private=True)
@@ -304,7 +307,7 @@ def balance_cmd(bot, update):
                         available_value = float(available_value) - float(order_volume)
 
         # Only show assets with volume > 0
-        if trim_zeros(currency_value) is not "0":
+        if trim_zeros(currency_value) != "0":
             msg += bold(assets[currency_key]["altname"] + ": " + trim_zeros(currency_value) + "\n")
 
             available_value = trim_zeros(float(available_value))
@@ -689,7 +692,8 @@ def trade_show_conf(update, chat_data):
 
     # Generate trade string to show at confirmation
     if chat_data["market_price"]:
-        update.message.reply_text(e_wit + "Retrieving estimated price...")
+        if chatty_mode:
+            update.message.reply_text(e_wit + "Retrieving estimated price...")
 
         # Send request to Kraken to get current trading price for pair
         res_data = kraken_api("Ticker", data={"pair": pairs[chat_data["currency"]]}, private=False)
@@ -774,7 +778,8 @@ def trade_confirm(bot, update, chat_data):
 # Show and manage orders
 @restrict_access
 def orders_cmd(bot, update):
-    update.message.reply_text(e_wit + "Retrieving orders...")
+    if chatty_mode:
+        update.message.reply_text(e_wit + "Retrieving orders...")
 
     # Send request to Kraken to get open orders
     res_data = kraken_api("OpenOrders", private=True)
@@ -905,7 +910,8 @@ def orders_close_order(bot, update):
 def price_cmd(bot, update):
     # If single-price option is active, get prices for all coins
     if config["single_price"]:
-        update.message.reply_text(e_wit + "Retrieving prices...")
+        if chatty_mode:
+            update.message.reply_text(e_wit + "Retrieving prices...")
 
         req_data = dict()
         req_data["pair"] = str()
@@ -952,7 +958,8 @@ def price_cmd(bot, update):
 
 # Choose for which currency to show the last trade price
 def price_currency(bot, update):
-    update.message.reply_text(e_wit + "Retrieving price...")
+    if chatty_mode:
+        update.message.reply_text(e_wit + "Retrieving price...")
 
     currency = update.message.text.upper()
     req_data = {"pair": pairs[currency]}
@@ -988,10 +995,10 @@ def value_cmd(bot, update):
 
     return WorkflowEnum.VALUE_CURRENCY
 
-
 # Choose for which currency you want to know the current value
 def value_currency(bot, update):
-    update.message.reply_text(e_wit + "Retrieving current value...")
+    if chatty_mode:
+        update.message.reply_text(e_wit + "Retrieving current value...")
 
     # ALL COINS (balance of all coins)
     if update.message.text.upper() == KeyboardEnum.ALL.clean():
@@ -1082,7 +1089,8 @@ def reload_cmd(bot, update):
 # Is it under maintenance or functional?
 @restrict_access
 def state_cmd(bot, update):
-    update.message.reply_text(e_wit + "Retrieving API state...")
+    if chatty_mode:
+        update.message.reply_text(e_wit + "Retrieving API state...")
 
     msg = "Kraken API Status: " + bold(api_state()) + "\nhttps://status.kraken.com"
     updater.bot.send_message(config["user_id"],
@@ -1127,7 +1135,8 @@ def get_trade_str(trade):
 # Shows executed trades with volume and price
 @restrict_access
 def trades_cmd(bot, update):
-    update.message.reply_text(e_wit + "Retrieving executed trades...")
+    if chatty_mode:
+        update.message.reply_text(e_wit + "Retrieving executed trades...")
 
     # Send request to Kraken to get trades history
     res_trades = kraken_api("TradesHistory", private=True)
@@ -1349,7 +1358,8 @@ def funding_currency(bot, update, chat_data):
 
 # Get wallet addresses to deposit to
 def funding_deposit(bot, update, chat_data):
-    update.message.reply_text(e_wit + "Retrieving wallets to deposit...")
+    if chatty_mode:
+        update.message.reply_text(e_wit + "Retrieving wallets to deposit...")
 
     req_data = dict()
     req_data["asset"] = chat_data["currency"]
@@ -1738,7 +1748,7 @@ def check_order_exec(bot, job):
     if res_data["result"]["closed"]:
         # Go through closed orders
         for order_id, details in res_data["result"]["closed"].items():
-            if trim_zeros(details["vol_exec"]) is not "0":
+            if trim_zeros(details["vol_exec"]) != "0":
                 # Create trade string
                 trade_str = details["descr"]["type"] + " " + \
                             details["vol_exec"] + " " + \
@@ -1799,12 +1809,14 @@ def init_cmd(bot, update):
 
     # Show start up message
     msg = e_bgn + "Preparing Kraken-Bot"
-    updater.bot.send_message(uid, msg, disable_notification=True, reply_markup=ReplyKeyboardRemove())
+    if chatty_mode:
+        updater.bot.send_message(uid, msg, disable_notification=True, reply_markup=ReplyKeyboardRemove())
 
     # Assets -----------------
 
     msg = e_wit + "Reading assets..."
-    m = updater.bot.send_message(uid, msg, disable_notification=True)
+    if chatty_mode:
+        m = updater.bot.send_message(uid, msg, disable_notification=True)
 
     res_assets = kraken_api("Assets")
 
@@ -1823,12 +1835,14 @@ def init_cmd(bot, update):
     assets = res_assets["result"]
 
     msg = e_dne + "Reading assets... DONE"
-    updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
+    if chatty_mode:
+        updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
 
     # Asset pairs -----------------
 
     msg = e_wit + "Reading asset pairs..."
-    m = updater.bot.send_message(uid, msg, disable_notification=True)
+    if chatty_mode:
+        m = updater.bot.send_message(uid, msg, disable_notification=True)
 
     res_pairs = kraken_api("AssetPairs")
 
@@ -1843,43 +1857,50 @@ def init_cmd(bot, update):
         return
 
     msg = e_dne + "Reading asset pairs... DONE"
-    updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
+    if chatty_mode:
+        updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
 
     # Order limits -----------------
 
     msg = e_wit + "Reading order limits..."
-    m = updater.bot.send_message(uid, msg, disable_notification=True)
+    if chatty_mode:
+        m = updater.bot.send_message(uid, msg, disable_notification=True)
 
     # Save order limits in global variable
     global limits
     limits = min_order_size()
 
     msg = e_dne + "Reading order limits... DONE"
-    updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
+    if chatty_mode:
+        updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
 
     # Sanity check -----------------
 
     msg = e_wit + "Checking sanity..."
-    m = updater.bot.send_message(uid, msg, disable_notification=True)
+    if chatty_mode:
+        m = updater.bot.send_message(uid, msg, disable_notification=True)
 
     # Check sanity of configuration file
     # Sanity check not finished successfully
     sane, parameter = is_conf_sane(res_pairs["result"])
     if not sane:
         msg = e_fld + "Checking sanity... FAILED\n/shutdown - shut down the bot"
-        updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
+        if chatty_mode:
+            updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
 
         msg = e_err + "Wrong configuration: " + parameter
         updater.bot.send_message(uid, msg)
         return
 
     msg = e_dne + "Checking sanity... DONE"
-    updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
+    if chatty_mode:
+        updater.bot.edit_message_text(msg, chat_id=uid, message_id=m.message_id)
 
     # Bot is ready -----------------
 
     msg = e_bgn + "Kraken-Bot is ready!"
-    updater.bot.send_message(uid, msg, reply_markup=keyboard_cmds())
+    if chatty_mode:
+        updater.bot.send_message(uid, msg, reply_markup=keyboard_cmds())
 
 
 # Converts a Unix timestamp to a data-time object with format 'Y-m-d H:M:S'

@@ -31,6 +31,7 @@
     },
     "log_level": 0,
     "log_to_file": false,
+    "chatty_mode": false,
     "retries": 2,
     "single_price": true,
     "single_chart": true,
